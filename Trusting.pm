@@ -1,9 +1,10 @@
 package HTML::Ballot::Trusting;
-our $VERSION = 0.12;		# 25/07/2001 17:14
+our $VERSION = 0.2;		# Thu Jul 26 15:03:11 2001
 use strict;
 use warnings;
 use Carp;
 use HTML::Entities ();
+
 # Later: CGI and use HTML::EasyTemplate 0.985;
 
 
@@ -16,11 +17,10 @@ HTML::Ballot::Trusting - HTML-template-based insercure multiple-choice ballot
 
 =head1 SYNOPSIS
 
-=head1 SYNOPSIS
-
 # Create the poll
 
 	use HTML::Ballot::Trusting;
+	$HTML::Ballot::Trusting::CHAT = 3;
 	my $p = new HTML::Ballot::Trusting {
 		ARTICLE_ROOT => 'E:/www/leegoddard_com',
 		URL_ROOT 	=> 'http://localhost/leegoddard_com',
@@ -36,48 +36,72 @@ HTML::Ballot::Trusting - HTML-template-based insercure multiple-choice ballot
 		]
 	};
 	$p->create();
-	exit;
 
 =head1 DESCRIPTION
 
 A simple module for inseucre web ballots.
 
+This is a very beta version that will mature over the
+next week or so.  Please let me know how it breaks.
+
+Features:
+
 =over 4
 
 =item *
 
-a HTML page of voting options and one of the results of votes so far is
-generated from a single HTML template, and it is in these pages that ballot
-status is maintained, so no additional file access is required.  This may
-be extended to include a ballot `time out'.
+no test is made of who is voting, so users may vote any number of
+times, or may even vote (and surely will) thousands of times using a
+"LWP" hack.
 
 =item *
 
-optionally, users can add comments.
+a HTML page of voting options and one of the results of votes so far
+is generated from a single HTML template, and it is in these pages
+that ballot status is maintained, so no additional file access is
+required.
 
 =item *
 
-optionally, a list of those who have voted may be maintained.
-B<NO PROVISION> is or will be made to record the value of votes.
+HTML output into the template is minimal, but all unique entities
+are given a "class" attribute for easy CSS re-definitions.
 
 =item *
 
-HTML output into the template is minimal, but all unique entities are given
-a C<class> attribute for easy CSS re-definitions.
+simple bar charts of results are generated using HTML.
 
 =item *
 
-simple bar charts of results are generated using HTML.  Options to have
-graphs based on single-pixels, or using the C<GD> interface will arrive
-some time in the future.
+users may submit a comment with thier vote, though no connection
+between the value of the vote and the user is recorded
 
 =item *
 
-no test is made of who is voting, so users may vote any number of times, or may
-even vote (and surely will) thousands of times using a C<LWP> hack.
-A more secure version is being constructed, which uses simple e-mail authentication
-of users, sending ony one voting password to any e-mail address: this may appear
-as C<HTML::Ballot::MoreCynical>.
+users' IP addresses may be recorded, and displayed, and a chart
+of the IP addresses from which communication has been received
+the most may be displayed.
+
+=back
+
+In future these features may be added:
+
+=over 4
+
+=item *
+
+A more secure version is being considered, which uses
+simple e-mail authentication of users, sending ony one voting
+password to any e-mail address: this may appear as
+"HTML::Ballot::MoreCynical".
+
+=item *
+
+This may be extended to include a ballot `time out'.
+
+=item *
+
+Options to have graphs based on single-pixels, or using the "GD"
+interface will arrive some time in the future.
 
 =back
 
@@ -99,20 +123,49 @@ or you will not be able to view the results' bar graph.
 See L</CSS SPECIFICATION> for more details on other CSS classes
 employed.
 
+Other functions may be included as below. Note that C<TEMPLATEITEM>s
+may require some minimal content of at least a space character, I'm
+not sure, I'd better check.
+
+=over 4
+
+=item *
+
 If you wish to allow a user to submit a comment with their vote,
 include the following element:
 
-	<TEMPLATEITEM name='COMMENT'></TEMPLATEITEM>
+	<TEMPLATEITEM name='COMMENT'>
+		This is what voter's have said:
+	</TEMPLATEITEM>
 
 Unlike the C<QUESTIONS TEMPLATEITEM>, any text you include	in this
 block will be reatained at the top of a list of users' comments.
 
+=item *
+
 If you wish to have the result page display a list of the names
 entered by voters, also include:
 
-	<TEMPLATEITEM name='VOTERLIST'></TEMPLATEITEM>
+	<TEMPLATEITEM name='VOTERLIST'>
+		Here is the voterlist...
+	</TEMPLATEITEM>
 
 This acts in the manner of the C<COMMENT TEMPLATEITEM>, above.
+
+=item *
+
+If you wish to have the result page display a list of the most
+frequently-posting IP addresses, include:
+
+	<TEMPLATEITEM name='IPCHART'>
+		<H2>Top IP Addresses To Post To This Ballot</H2>
+	</TEMPLATEITEM>
+
+To this, the module will add a C<SPAN> of HTML that lists the
+top posters.  Anything before that span (in this example,
+the C<H2> element) will remain.
+
+=back
 
 =item 2.
 
@@ -145,6 +198,14 @@ our $SHEBANG		= '';
 our $ASKNAMETEXT	= 'Your name, please';
 our $ASKCOMMENTTEXT	= 'Optionally, your comment optional';
 our $MAXTOTALCOMMENTLENGTH = 2000000;	# Maxium size of all comment mark up permitted
+
+=item IPCHART
+
+THe number of items to include in the IP chart of frequent posters
+
+=cut
+
+our $IPCHART 		= 5;
 
 =head1 CONSTRUCTOR (new)
 
@@ -374,6 +435,10 @@ sub create { my $self = shift;
 	if (exists $TEMPLATE->{TEMPLATEITEMS}->{VOTERLIST}){
 		$template_items{VOTERLIST} =  $TEMPLATE->{TEMPLATEITEMS}->{VOTERLIST};
 	}
+	# Add IP chart if requested
+	if (exists $TEMPLATE->{TEMPLATEITEMS}->{IPCHART} ){
+		$template_items{IPCHART} = $TEMPLATE->{TEMPLATEITEMS}->{IPCHART}
+	}
 	$TEMPLATE -> process('fill', \%template_items );	# Add them to the page
 	$TEMPLATE -> save($self->{RPATH});
 
@@ -444,19 +509,20 @@ sub cast_vote { my ($self, $q_answered,$usrcomment,$usrname) = (shift,shift,shif
 			SOURCE_PATH => $self->{RPATH},
 			ARTICLE_ROOT => $self->{ARTICLE_ROOT},
 			URL_ROOT => $self->{URL_ROOT},
+			FLOCK => 1,
 		});
 	$TEMPLATE -> process('collect');						# Collect the values
 	my %template_items = %{$TEMPLATE->{TEMPLATEITEMS}};		# Do something with them
+
 	my %scores;												# Keyed by question
 	my ($total_cast,$hi_score) = (0,0);
 	# Aquire results from template
 	foreach (keys %template_items){
-		if ($_!~/^(COMMENT|\Q$STARTGRAPHIC\E|\Q$STARTPC\E)/ and $_ ne 'QUESTIONS'){
+		if ($_!~/^(VOTERLIST|IPCHART|COMMENT|\Q$STARTGRAPHIC\E|\Q$STARTPC\E)/ and $_ ne 'QUESTIONS'){
 			$template_items{$_}++ if $_ eq $q_answered;
-			$scores{$_} = $template_items{$_};
+			$scores{$_} = $template_items{$_}; # Will create a warning, not-numeric, but works...:(
 			$total_cast += $scores{$_};
 			$hi_score = $scores{$_} if $scores{$_} > $hi_score;
-			warn "Total now $total_cast";
 		}
 	}
 	# Create new results
@@ -482,7 +548,7 @@ sub cast_vote { my ($self, $q_answered,$usrcomment,$usrname) = (shift,shift,shif
 		$template_items{"$STARTPC$_"} = sprintf("%.2f", $pc)."%";
 		$template_items{"$STARTGRAPHIC$_"}.= '</TD><TD></TD></TR></TABLE>'."\n";
 	}
-	# Comments
+	# Include user's comments
 	if (defined $usrcomment and $usrcomment!~/^\s*$/g
 	and length $template_items{COMMENT}<$MAXTOTALCOMMENTLENGTH		# No overstuffing of the file
 	){
@@ -490,8 +556,35 @@ sub cast_vote { my ($self, $q_answered,$usrcomment,$usrname) = (shift,shift,shif
 		$usrcomment = HTML::Entities::encode($usrcomment);
 		$template_items{COMMENT} .= "<DIV class=\"comment\"><SPAN class=\"votecommentdate\">$todaydate</SPAN><SPAN class=\"voteusrname\">$usrname</SPAN><SPAN class=\"votecommenttext\">$usrcomment</SPAN></DIV>\n";
 	}
+
+	# Include user's name
 	if (exists $template_items{VOTERLIST}){
-		$template_items{VOTERLIST}.="<SPAN class\"listvoteusrname\">$usrname.</SPAN>\n";
+		$template_items{VOTERLIST}.="<SPAN class\"listvoteusrname\"><SPAN class=\"voteusrname\">$usrname </SPAN>";
+	}
+	# Include IP?
+	if (exists $template_items{VOTERLIST}){
+		$template_items{VOTERLIST}.="<SPAN class=\"voteusrip\">($ENV{REMOTE_HOST})</SPAN>";
+	}
+	# Finish user's name list
+	if (exists $template_items{VOTERLIST}){
+		$template_items{VOTERLIST}.="</SPAN>\n";
+	}
+	# Top-X IPs
+	if (exists $template_items{IPCHART}){
+		# Collect IP addresses from VOTERLIST
+		my %ips;
+		while ($template_items{VOTERLIST} =~ m/\QSPAN class="voteusrip">(\E(127.0.0.1)\Q)<\/SPAN>\E/g){
+			$ips{$1}++;
+		}
+		# Remove previous chart (as defined below) from page
+		$template_items{IPCHART} =~ s/<SPAN class="ipchart">.*//s;
+		# Add the chart
+		$template_items{IPCHART} .= '<SPAN class="ipchart">';
+		my @ips = sort { $ips{$b} <=> $ips{$a} } keys %ips;
+		for (0..$IPCHART-1){
+			$template_items{IPCHART} .= "<SPAN class=\"ipchartitem\">".($_+1).": $ips[$_]</SPAN>\n";
+		}
+		$template_items{IPCHART} .= '</SPAN>';
 	}
 
 	$TEMPLATE -> process('fill', \%template_items );		# Add them to the page
@@ -575,7 +668,19 @@ The C<SPAN> that covers a user-entered name in the report.
 
 =item C<listvoteusrname>
 
-The C<SPAN> that covers user-entered names in list context
+The C<SPAN> that covers user-entered names and IP address in list context
+
+=item C<voteusrname>
+
+The C<SPAN> that covers the user name within C<listvoteusrname>.
+
+=item C<voteusrip>
+
+As above, but for IP address.
+
+=item C<ipchartitem>
+
+An item in the IP chart.
 
 =back
 

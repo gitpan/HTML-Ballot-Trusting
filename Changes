@@ -1,5 +1,8 @@
 Revision history for Perl extension HTML::Ballot::Trusting.
 
+0.2   Thu Jul 26 15:03:11 2001
+	- added functions to list IP addresses
+
 0.011 Wed Jul 25 15:04:00 2001
 	- added functionality to accept comments and/or names
 
