@@ -10,11 +10,19 @@ p {font-family:Verdana,Arial,Helvetica,Sans}
 .votehighscorebar {  background-color: red}
 .chart {		background-color:#eee; size:4px;font-family:Verdana,Arial,Helvetica,Sans; }
 .votequestion {	background-color:#eee; font-family:Verdana,Arial,Helvetica,Sans}
-.votescore { 	background-color:#eee; font-family:"Lucida Console",Courier, "Courier New", Sans }
+.votescore { 	background-color:#eee; font-family:"Lucida Console",Courier, "Courier New", Sans; font-size:10pt}
+.votepc 	{ 	background-color:#eee; font-family:"Lucida Console",Courier, "Courier New", Sans; font-size:10pt}
 .voteresults { 	background-color:#fff; font-size:10pt;width:100%; border:1px solid #aaa; padding:5px;margin:0 0 10 0px;}
 .voteoptiontext { background-color:#fff; font-family:Verdana,Arial,Helvetica,Sans;padding:5px;}
 .voteoptionradio { background-color:#fff; font-family:Verdana,Arial,Helvetica,Sans}
 .voteoptionsubmit { font-family:Verdana,Arial,Helvetica,Sans; padding:1px;margin:10px;position:relative;left:40px}
+
+.comment { background-color:pink }
+.votecommentdate {	font-size:8pt; font-family:Verdana,Arial,Helvetica,Sans;padding:5px;}
+.voteusrname { 		font-weight: bold;font-size:10pt;font-family:Verdana,Arial,Helvetica,Sans;padding:5px;}
+.votecommenttext {	font-style: italic; font-size:10pt; font-family:Georgia, "Times New Roman", Times, Serif;padding:5px;}
+
+.listvoteusrname {font-weight: bold;font-size:10pt;font-family:Verdana,Arial,Helvetica,Sans;padding:5px;}}
 -->
 </style>
 </head>
@@ -27,11 +35,17 @@ p {font-family:Verdana,Arial,Helvetica,Sans}
 	module, available from <A href="http://search.cpan.org">CPAN</A> or
 	from the author at <A href="mailto:code@leegoddard.com">code@leegoddard.com</A>.
 </P>
-
 <TEMPLATEITEM name='QUESTIONS'></TEMPLATEITEM>
 
-<HR size="1">
-<P align="right"><SMALL>Copyright (C) Lee Goddard 2001. All Rights Reserved.</SMALL></P>
+<TEMPLATEITEM name='VOTERLIST'>
+	<H2><HR size="1">Votes Received<HR size="1"></H2>
+</TEMPLATEITEM>
+
+<TEMPLATEITEM name='COMMENT'>
+	<H2><HR size="1">Comments<HR size="1"></H2>
+</TEMPLATEITEM>
+
+<P><HR size="1"><SMALL>Copyright (C) Lee Goddard 2001. All Rights Reserved. </SMALL></P>
 
 </body>
 </html>

@@ -1,5 +1,5 @@
 package HTML::Ballot::Trusting;
-our $VERSION = 0.11;
+our $VERSION = 0.12;		# 25/07/2001 17:14
 use strict;
 use warnings;
 use Carp;
@@ -7,7 +7,7 @@ use HTML::Entities ();
 # Later: CGI and use HTML::EasyTemplate 0.985;
 
 
-our $CHAT = 1;
+our $CHAT = undef;		# Set for reports to STDERR.
 
 
 =head1 NAME
@@ -16,7 +16,27 @@ HTML::Ballot::Trusting - HTML-template-based insercure multiple-choice ballot
 
 =head1 SYNOPSIS
 
-See L</SETTING UP A POLL>.
+=head1 SYNOPSIS
+
+# Create the poll
+
+	use HTML::Ballot::Trusting;
+	my $p = new HTML::Ballot::Trusting {
+		ARTICLE_ROOT => 'E:/www/leegoddard_com',
+		URL_ROOT 	=> 'http://localhost/leegoddard_com',
+		RPATH 	 => 'E:/www/leegoddard_com/vote/results.html',
+		TPATH	 => 'E:/www/leegoddard_com/vote/template.html',
+		QPATH	 =>	'E:/www/leegoddard_com/vote/vote.html',
+		CPATH 	 => 'E:/www/leegoddard_com/CGI_BIN/vote.pl',
+		ASKNAMES => 1,
+		QUESTIONS => [
+			'Why?',
+			'Why not?',
+			'Only for £300.'
+		]
+	};
+	$p->create();
+	exit;
 
 =head1 DESCRIPTION
 
@@ -30,6 +50,15 @@ a HTML page of voting options and one of the results of votes so far is
 generated from a single HTML template, and it is in these pages that ballot
 status is maintained, so no additional file access is required.  This may
 be extended to include a ballot `time out'.
+
+=item *
+
+optionally, users can add comments.
+
+=item *
+
+optionally, a list of those who have voted may be maintained.
+B<NO PROVISION> is or will be made to record the value of votes.
 
 =item *
 
@@ -52,18 +81,49 @@ as C<HTML::Ballot::MoreCynical>.
 
 =back
 
-=head1 SYNOPSIS
+=head1 USE
 
-	use HTML::Ballot::Trusting;
-	my $p = new HTML::Ballot::Trusting {
-		RPATH 	  => 'E:/www/leegoddard_com/vote/results.html',
-		SUBMITTO  => 'http://localhost/leegoddard_com/vote/vote.pl',
-		TPATH	  => 'E:/www/leegoddard_com/vote/template.html',
-		QPATH	  =>	'E:/www/leegoddard_com/vote/vote.html',
-		QUESTIONS => [ 'Why?', 'Why not?', 'Why what?' ]
-	};
-	$p->create();
-	exit;
+=over 4
+
+=item 1.
+
+Construct an HTML template that can be used to generate the question
+and answer pages.  Where you wish the questions and answers to
+appear, insert the following element:
+
+	<TEMPLATEITEM name='QUESTIONS'></TEMPLATEITEM>
+
+The template should at least define the CSS representation for
+C<votehighscorebar> and C<votebar> as having a coloured background,
+or you will not be able to view the results' bar graph.
+See L</CSS SPECIFICATION> for more details on other CSS classes
+employed.
+
+If you wish to allow a user to submit a comment with their vote,
+include the following element:
+
+	<TEMPLATEITEM name='COMMENT'></TEMPLATEITEM>
+
+Unlike the C<QUESTIONS TEMPLATEITEM>, any text you include	in this
+block will be reatained at the top of a list of users' comments.
+
+If you wish to have the result page display a list of the names
+entered by voters, also include:
+
+	<TEMPLATEITEM name='VOTERLIST'></TEMPLATEITEM>
+
+This acts in the manner of the C<COMMENT TEMPLATEITEM>, above.
+
+=item 2.
+
+Initiate the ballot by constructnig an HTML::Ballot::Trusting object and
+calling C<create> method upon it in a manner simillar to that described
+in L</SYNOPSIS>.
+
+In response, you should receive a list of the locations of files used and
+dynamically created by the process.
+
+=back
 
 =head1 GLOBAL VARIABLES
 
@@ -80,7 +140,11 @@ C<STARTGRAPHIC>, C<SHEBANG> in L</CONSTRUCTOR (new)>.>
 our $ARTICLE_ROOT 	= 'E:/www/leegoddard_com';
 our $URL_ROOT 		= 'http://localhost/leegoddard_com';
 our $STARTGRAPHIC 	= "STARTGRAPHICHERE__";
+our $STARTPC		= "STARTPCHERE__";
 our $SHEBANG		= '';
+our $ASKNAMETEXT	= 'Your name, please';
+our $ASKCOMMENTTEXT	= 'Optionally, your comment optional';
+our $MAXTOTALCOMMENTLENGTH = 2000000;	# Maxium size of all comment mark up permitted
 
 =head1 CONSTRUCTOR (new)
 
@@ -132,6 +196,19 @@ set this to over-ride the default value taken from the global constant scalar
 of the same name.  Could adjust this to suss the path from C<Config.pm> or
 even C<MakeMaker>, if it came to it, but time....
 
+=item COMMENTLENGTH
+
+Maximum acceptable length of text comments.
+
+=item ASKNAMES
+
+Set if users should supply their name when voting.
+
+=item NAMELENGTH
+
+If C<ASKNAMES> (above) is defined, this value may be set to
+limit the possible length of a name.
+
 =back
 
 =cut
@@ -145,6 +222,8 @@ sub new {
 	# Default instance variables
 	$self->{ARTICLE_ROOT} 	= $ARTICLE_ROOT;
 	$self->{URL_ROOT} 		= $URL_ROOT;
+	$self->{COMMENTLENGTH}	= 75;
+	$self->{NAMELENGTH}		= 30;
 
 	# Take parameters and place in object slots/set as instance variables
 	if (ref $_[0] eq 'HASH'){	%args = %{$_[0]} }
@@ -163,7 +242,7 @@ sub new {
 
 
 
-
+=head1 METHODS
 
 =head2 METHOD create
 
@@ -172,39 +251,42 @@ Creates the HTML voting page.
 Accepts: just the calling object: all properties used should be set
 during construction (see L</CONSTRUCTOR (new)>).
 
+If the page contains a C<COMMENT TEMPLATEITEM>, will include a text box
+in the voting page, to allow users to submit comments.  Setting
+C<COMMENTLENGTH> to a value when calling the constructor will
+restrict the length of acceptable comments.
+
+If the page contains a <VOTERLIST TEMPLATEITEM>, this will be updated
+with the name supplied by the user.
+
 Returns: the path to the saved HTML question document.
 
-The template file used to generate the question and answer pages
-should be an HTML page with the following markup inserted at the
-point that the C<FORM> and radio-buttons should appear:
-
-	<TEMPLATEITEM name='QUESTIONS'></TEMPLATEITEM>
-
-The template should at least define the CSS representation for
-C<votehighscorebar> and C<votebar> as having a coloured background.
-See also L</CSS REFERENCE>.
+See also L</USE> and L</CSS SPECIFICATION>.
 
 =item QUESTION PAGE
 
 The C<action> attribute of the C<FORM> element is set to the CGI
 environment variable, C<SCRIPT_NAME> (that is, the location of this script).
 
-Form elements are simply seperated by linebreaks (C<BR>): use CSS to control the layout:
-the radio-button HTML elements are set to be class C<voteoption>; the C<SUBMIT> button
-element is set to be class C<votesubmit>.
+Form elements are simply seperated by linebreaks (C<BR>): use CSS to control
+the layout: the radio-button HTML elements are set to be class C<voteoption>;
+the C<SUBMIT> button element is set to be class C<votesubmit>.
 
 =item RESULTS PAGE
 
 HTML is used to create bar charts, but this should be easy to replace with
-a C<GD> image, or a stretched single-pixel.  Each question is given a C<TEMPLATEITEM>
-element, and results will be placed within by the C<vote> method (see L</METHOD vote>).
+a C<GD> image, or a stretched single-pixel.  Each question is given a
+C<TEMPLATEITEM> element, and results will be placed within by the C<vote>
+method (see L</METHOD vote>).
 
-See also L<CSS REFERENCE>.
+See also L<CSS SPECIFICATION>.
 
 =cut
 
 sub create { my $self = shift;
 	local *OUT;
+	my %template_items;
+	my $form_processing_url ;
 	croak "No path to HTML template" if not exists $self->{TPATH} or not defined $self->{TPATH};
 	croak "No path to save HTML at" if not exists $self->{QPATH} or not defined $self->{QPATH};
 	croak "No questions" if not exists $self->{QUESTIONS} or not defined $self->{QUESTIONS};
@@ -212,17 +294,19 @@ sub create { my $self = shift;
 	and (not exists $self->{CPATH} or not defined $self->{CPATH})){
 		croak "No SUBMITTO or CPATH value defined - one or the other is required"
 	}
-	my $form_processing_url ;
+
 	use HTML::EasyTemplate 0.985;
 
 	# Create question poll page QPATH #############################################
 	#
 	# Create radio button HTML from questions
 	my $TEMPLATE = new HTML::EasyTemplate(
-		{	SOURCE_PATH => $self->{TPATH},
+		{	ADD_TAGS => 1,
+			SOURCE_PATH => $self->{TPATH},
 			ARTICLE_ROOT => $self->{ARTICLE_ROOT},
 			URL_ROOT => $self->{URL_ROOT},
 		});
+	$TEMPLATE -> process('collect');					# Collect the values
 
 	# Where should the form ACTION point? Set now so can use TEMPLATE methods
 	if (exists $self->{CPATH}){
@@ -231,15 +315,32 @@ sub create { my $self = shift;
 		$form_processing_url = $self->{SUBMITTO}
 	}
 
-	my $qhtml =	"<form name=\"".__PACKAGE__."\" method=\"post\" action=\"$form_processing_url\">\n";
+	# Construct form
+	my $qhtml =	"<form name=\"".__PACKAGE__."\" method=\"post\" action=\"$form_processing_url\" ";
+	$qhtml .= "onSubmit=\"";
+	$qhtml .= "if (this.usrcomment.value=='$ASKCOMMENTTEXT'){this.usrcomment.value=''}";
+	$qhtml .= "if (this.usrname.value==''){alert('Please, please, please enter your name.... it will not be recorded against your vote');this.usrname.focus();return false;}";
+	$qhtml .= "if (this.usrname.value=='$ASKNAMETEXT'){alert('Please enter your name.. It will not be recorded against your vote');this.usrname.focus();return false;}";
+	$qhtml .= "return true;";
+	$qhtml .= "\">\n";
+
 	foreach (@{$self->{QUESTIONS}}) {
 		$_ = HTML::Entities::encode($_);
  		$qhtml .= "<input class=\"voteoptionradio\" type=\"radio\" name=\"question\" value=\"$_\"><SPAN class=\"voteoptiontext\">$_</SPAN></input><BR>\n";
 	}
 	$qhtml.="<INPUT type=\"HIDDEN\" name=\"rpath\" value=\"$self->{RPATH}\">\n";
-	$qhtml.="<INPUT type=\"SUBMIT\" class=\"voteoptionsubmit\" value=\"Cast Vote\">\n</FORM>\n";
 
-	my %template_items;
+	# Add name input field if appropriate
+	if (exists $self->{ASKNAMES}){
+		$qhtml.="<INPUT name=\"usrname\" value=\"$ASKNAMETEXT\" onFocus=\"this.value=''\" class=\"votenametextbox\" type=\"TEXT\" MAXLENGTH=\"$self->{NAMELENGTH}\" SIZE=\"40\">\n";
+	}
+
+	# Add comment input field if comment output area is defined:
+	if (exists $TEMPLATE->{TEMPLATEITEMS}->{COMMENT} and defined $TEMPLATE->{TEMPLATEITEMS}->{COMMENT}){
+		$qhtml.="<INPUT name=\"usrcomment\" value=\"$ASKCOMMENTTEXT\" onFocus=\"this.value=''\" class=\"votecommenttextbox\" type=\"TEXT\" MAXLENGTH=\"$self->{COMMENTLENGTH}\" SIZE=\"40\">\n";
+	}
+
+	$qhtml.="<INPUT type=\"SUBMIT\" class=\"voteoptionsubmit\" value=\"Cast Vote\">\n</FORM>\n";
 	$template_items{QUESTIONS} 	= $qhtml;				# Make new values, for example:
 	$TEMPLATE -> process('fill', \%template_items );	# Add them to the page
 	$TEMPLATE -> save($self->{QPATH});
@@ -250,7 +351,8 @@ sub create { my $self = shift;
 	foreach (@{$self->{QUESTIONS}}) {
 		$rhtml .= "<TR>\n<TD class=\"votequestion\" align=\"left\" nowrap width=\"25%\">$_</TD>\n\t";
 		$rhtml .= "<TD class=\"votescore\" align=\"right\"><TEMPLATEITEM name=\"$_\">0</TEMPLATEITEM></TD>\n";
-		$rhtml .= "<TD class=\"chart\" align=\"left\"><TEMPLATEITEM name=\"$STARTGRAPHIC$_\">No votes yet cast.</TEMPLATEITEM></TD>\n";
+		$rhtml .= "<TD class=\"votepc\" nowrap align=\"right\"><TEMPLATEITEM name=\"$STARTPC$_\">0%</TEMPLATEITEM></TD>\n";
+		$rhtml .= "<TD class=\"chart\" width=\"75%\" align=\"left\"><TEMPLATEITEM name=\"$STARTGRAPHIC$_\">No votes yet cast.</TEMPLATEITEM></TD>\n";
 		$rhtml .= "</TR>\n";
 	}
 	$rhtml .= "</TABLE>\n</DIV>\n";
@@ -261,8 +363,17 @@ sub create { my $self = shift;
 			ARTICLE_ROOT => $self->{ARTICLE_ROOT},
 			URL_ROOT => $self->{URL_ROOT},
 		});
+	$TEMPLATE -> process('collect');					# Collect the values
 
 	$template_items{QUESTIONS} 	= $rhtml;				# Make new values, for example:
+
+	if (exists $TEMPLATE->{TEMPLATEITEMS}->{COMMENT} and defined $TEMPLATE->{TEMPLATEITEMS}->{COMMENT}){
+		#die "<XMP>",$TEMPLATE->{TEMPLATEITEMS}->{COMMENT},"</XMP>";
+		$template_items{COMMENT} = $TEMPLATE->{TEMPLATEITEMS}->{COMMENT};
+	}
+	if (exists $TEMPLATE->{TEMPLATEITEMS}->{VOTERLIST}){
+		$template_items{VOTERLIST} =  $TEMPLATE->{TEMPLATEITEMS}->{VOTERLIST};
+	}
 	$TEMPLATE -> process('fill', \%template_items );	# Add them to the page
 	$TEMPLATE -> save($self->{RPATH});
 
@@ -281,8 +392,8 @@ use CGI;
 our \$cgi = new CGI;
 if (\$cgi->param() and \$cgi->param('question') and \$cgi->param('rpath') ){
 	\$v = new HTML::Ballot::Trusting ( {RPATH=>\$cgi->param('rpath')});
-	\$v->cast_vote( \$cgi->param('question') );
-} else {print "Location: $form_processing_url\\n\\n";}
+	\$v->cast_vote( \$cgi->param('question'),\$cgi->param('usrcomment'),\$cgi->param('usrname') );
+} else {print "Location: $form_processing_url\\n\\n\\n";}
 exit;
 
 EOPERL
@@ -292,8 +403,11 @@ EOPERL
 	close OUT;
 
 	# Report #######################################################################
-	print "Created poll.\n";
-	print "Calling-script at: $self->{CPATH}\n";
+	print "Created poll.\n",
+		"Calling-script at: $self->{CPATH}\n",
+		"HTML template at: $self->{TPATH}\n",
+		"Qustion HTML is at: $self->{QPATH}\n",
+		"Results HTML is at: $self->{RPATH}\n\n";
 
 	return 1;
 }
@@ -305,15 +419,24 @@ EOPERL
 
 Casts a vote and updates the results file.
 
-Accepts: the question voted for, as defined in the HTML vote form's C<INPUT>/C<value>.
+Accepts:
+
+1. the question voted for, as defined in the HTML vote form's C<INPUT>/C<value>.
+
+2. optionally, a user-submitted comment.
+
+3. optionally, a user-submitted name.
 
 =cut
 
-sub cast_vote { my ($self, $q_answered) = (shift,shift);
+sub cast_vote { my ($self, $q_answered,$usrcomment,$usrname) = (shift,shift,shift,shift);
 	croak "No object" if not defined $self;
 	croak "No answer" if not defined $q_answered;
 	croak "No RPATH" if not exists $self->{RPATH};
 	croak "No RPATH path to save results at" if not exists $self->{RPATH};
+
+	@_ = split/ /,(scalar localtime); # Create the date
+	my $todaydate = "$_[2] $_[1] $_[4] $_[3]";
 
 	# Get existing results
 	my $TEMPLATE = new HTML::EasyTemplate(
@@ -328,7 +451,7 @@ sub cast_vote { my ($self, $q_answered) = (shift,shift);
 	my ($total_cast,$hi_score) = (0,0);
 	# Aquire results from template
 	foreach (keys %template_items){
-		if ($_!~/^$STARTGRAPHIC/ and $_ ne 'QUESTIONS'){
+		if ($_!~/^(COMMENT|\Q$STARTGRAPHIC\E|\Q$STARTPC\E)/ and $_ ne 'QUESTIONS'){
 			$template_items{$_}++ if $_ eq $q_answered;
 			$scores{$_} = $template_items{$_};
 			$total_cast += $scores{$_};
@@ -339,6 +462,7 @@ sub cast_vote { my ($self, $q_answered) = (shift,shift);
 	# Create new results
 	foreach (keys %scores){
 		warn "$_...$template_items{$_}\n" if $CHAT;
+		my $pc = ((100 / $total_cast) * $template_items{$_} );
 		$template_items{$_} = $scores{$_};
 		$template_items{"$STARTGRAPHIC$_"} = '<TABLE width="100%"><TR><TD ';
 		if ($scores{$_} == $hi_score){
@@ -350,13 +474,26 @@ sub cast_vote { my ($self, $q_answered) = (shift,shift);
 		if ($scores{$_}==0){
 			$template_items{"$STARTGRAPHIC$_"}.='0%">';
 		} else {
-			$template_items{"$STARTGRAPHIC$_"} .= ((100 / $total_cast) * $template_items{$_} );
+			$template_items{"$STARTGRAPHIC$_"} .= $pc;
 			$template_items{"$STARTGRAPHIC$_"}.= '%" ';
 			$template_items{"$STARTGRAPHIC$_"}.= 'bgcolor="red"' if exists $self->{NOCSS};
 			$template_items{"$STARTGRAPHIC$_"}.= '>&nbsp;';
 		}
+		$template_items{"$STARTPC$_"} = sprintf("%.2f", $pc)."%";
 		$template_items{"$STARTGRAPHIC$_"}.= '</TD><TD></TD></TR></TABLE>'."\n";
 	}
+	# Comments
+	if (defined $usrcomment and $usrcomment!~/^\s*$/g
+	and length $template_items{COMMENT}<$MAXTOTALCOMMENTLENGTH		# No overstuffing of the file
+	){
+		$usrcomment = substr $usrcomment,$self->{COMMENTLENGTH} if length $usrcomment>$self->{COMMENTLENGTH};
+		$usrcomment = HTML::Entities::encode($usrcomment);
+		$template_items{COMMENT} .= "<DIV class=\"comment\"><SPAN class=\"votecommentdate\">$todaydate</SPAN><SPAN class=\"voteusrname\">$usrname</SPAN><SPAN class=\"votecommenttext\">$usrcomment</SPAN></DIV>\n";
+	}
+	if (exists $template_items{VOTERLIST}){
+		$template_items{VOTERLIST}.="<SPAN class\"listvoteusrname\">$usrname.</SPAN>\n";
+	}
+
 	$TEMPLATE -> process('fill', \%template_items );		# Add them to the page
 	$TEMPLATE -> save($self->{RPATH});
 	# Redirect
@@ -369,7 +506,11 @@ sub cast_vote { my ($self, $q_answered) = (shift,shift);
 1;
 __END__
 
-=head1 CSS REFERENCE
+=head1 CSS SPECIFICATION
+
+The following CSS classes are employed (and expected) in the HTML:
+
+=over 4
 
 =item C<votehighscorebar> and C<votebar>
 
@@ -398,7 +539,11 @@ the left-most C<TD>, containing the text representing the questions;
 
 =item C<votescore>
 
-the central C<TD>, containing the text representing the number of votes recieved by the item;
+the centre-left C<TD>, containing the text representing the number of votes recieved by the item;
+
+=item C<votepc>
+
+the centre-right C<TD>, containing the text representing the percentage of vote obtained
 
 =item C<voteoptionradio>
 
@@ -412,6 +557,30 @@ The text associated with radio buttons, as above.
 
 The submit button as above.
 
+=item C<votecommenttextbox>
+
+The text box used to accept comments.
+
+=item C<votecommenttext>
+
+Text associated with the textbox (above).
+
+=item C<votecommentdate>
+
+The date C<SPAN> of a comment.
+
+=item C<voteusrname>
+
+The C<SPAN> that covers a user-entered name in the report.
+
+=item C<listvoteusrname>
+
+The C<SPAN> that covers user-entered names in list context
+
+=back
+
+
+
 =head1 SEE ALSO
 
 L<HTML::EasyTemplate>.
@@ -420,9 +589,7 @@ L<HTML::EasyTemplate>.
 
 Lee Goddard (L<LGoddard@CPAN.org|mailto:LGoddard@CPAN.org>)
 
-=head1
-
-COPYRIGHT AND LICENCE
+=head1 COPYRIGHT AND LICENCE
 
 This module and all associated code is Copyright (C) Lee Goddard 2001. All rights reserved.
 
