@@ -1,0 +1,9 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+test.pl
+Trusting.pm
+Trusting/sample_create.pl
+Trusting/sample_template.html
+Trusting/sample_vote.pl

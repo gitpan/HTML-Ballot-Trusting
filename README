@@ -1,0 +1,59 @@
+HTML/Ballot/Trusting version 0.01
+=================================
+
+    A simple module for inseucre web ballots.
+
+    This is a very beta version that will mature over the
+    next week or so.
+
+    Features:
+
+    *   a HTML page of voting options and one of the results of votes so far
+        is generated from a single HTML template, and it is in these pages
+        that ballot status is maintained, so no additional file access is
+        required. This may be extended to include a ballot `time out'.
+
+    *   HTML output into the template is minimal, but all unique entities
+        are given a "class" attribute for easy CSS re-definitions.
+
+    *   simple bar charts of results are generated using HTML. Options to
+        have graphs based on single-pixels, or using the "GD" interface will
+        arrive some time in the future.
+
+    *   no test is made of who is voting, so users may vote any number of
+        times, or may even vote (and surely will) thousands of times using a
+        "LWP" hack. A more secure version is being constructed, which uses
+        simple e-mail authentication of users, sending ony one voting
+        password to any e-mail address: this may appear as
+        "HTML::Ballot::MoreCynical".
+
+    *	the sample_vote.pl script is a sample of a script that may
+        by automatically generated in future versions.
+
+INSTALLATION
+
+	To install this module, do the usual:
+
+	   perl Makefile.PL
+	   make					- nmake on Win32
+	   make test			- etc
+	   make install
+
+DEPENDENCIES
+
+	As well as the pragmas 'strict' and 'warnings', this module
+	requires
+
+		CGI.pm,
+		HTML::EasyTemplate version 0.985 or higher,
+		HTML::Entities.
+
+COPYRIGHT AND LICENCE
+
+	This module and all associated code is Copyright (C) Lee Goddard 2001.
+	All rights reserved.
+
+	This is free software and may be used under the same terms as Perl itself
+	with the added condition that it not be used in a commercial setting, to
+	make money, either directly or indirectly, without the advanced and
+	explicit prior signed permission of the author.
