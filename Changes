@@ -1,5 +1,8 @@
 Revision history for Perl extension HTML::Ballot::Trusting.
 
+0.011 Tue Jul 24 06:07:56 2001
+	- added more CSS; dynamic creation of form-submission handler
+
 0.01  Tue Jul 24 04:37:26 2001
 	- original version; created by h2xs 1.21 with options
 		-Xcfn HTML::Ballot::Trusting

@@ -4,7 +4,7 @@ HTML/Ballot/Trusting version 0.01
     A simple module for inseucre web ballots.
 
     This is a very beta version that will mature over the
-    next week or so.
+    next week or so.  Please let me know how it breaks.
 
     Features:
 
@@ -27,9 +27,6 @@ HTML/Ballot/Trusting version 0.01
         password to any e-mail address: this may appear as
         "HTML::Ballot::MoreCynical".
 
-    *	the sample_vote.pl script is a sample of a script that may
-        by automatically generated in future versions.
-
 INSTALLATION
 
 	To install this module, do the usual:
@@ -39,6 +36,8 @@ INSTALLATION
 	   make test			- etc
 	   make install
 
+	Then please read the POD.
+
 DEPENDENCIES
 
 	As well as the pragmas 'strict' and 'warnings', this module
@@ -47,6 +46,10 @@ DEPENDENCIES
 		CGI.pm,
 		HTML::EasyTemplate version 0.985 or higher,
 		HTML::Entities.
+
+AUTHOR
+
+	Lee Goddard - lgoddard@cpan.org
 
 COPYRIGHT AND LICENCE
 
